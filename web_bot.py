@@ -47,6 +47,8 @@ class BirthdayBot:
             if Path(self.birthdays_file).exists():
                 with open(self.birthdays_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
+            # Создаем пустой файл, если он не существует
+            self.save_birthdays({})
             return {}
         except Exception as e:
             print(f"Ошибка загрузки файла дней рождения: {e}")
@@ -392,18 +394,23 @@ class BirthdayBot:
         self.start_scheduler_thread()
         
         # Настройка веб-хука
-        webhook_url = f"{self.webhook_url}/telegram"
-        await application.bot.set_webhook(url=webhook_url)
+        webhook_path = "telegram"
+        webhook_url = f"{self.webhook_url}/{webhook_path}"
+        
+        # Выводим отладочную информацию
+        print(f"🔄 Настройка веб-хука: {webhook_url}")
+        print(f"🔄 Порт: {self.port}")
         
         # Запуск веб-хука
         print(f"🤖 Бот запущен на веб-хуке: {webhook_url}")
         print(f"📋 Доступные команды: /start, /add, /list, /delete, /today, /upcoming, /help")
         
         # Запускаем бота с веб-хуком
+        await application.bot.set_webhook(url=webhook_url)
         await application.run_webhook(
             listen="0.0.0.0",
             port=self.port,
-            url_path="telegram",
+            url_path=webhook_path,
             webhook_url=webhook_url
         )
 

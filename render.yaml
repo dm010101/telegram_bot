@@ -11,5 +11,4 @@ services:
         value: Europe/Moscow
       - key: WEBHOOK_URL
         sync: false
-      - key: PORT
-        value: 10000 
+      # PORT устанавливается автоматически Render 
