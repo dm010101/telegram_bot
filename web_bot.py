@@ -14,7 +14,7 @@ import pytz
 import schedule
 import time
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import (
     Application, CommandHandler, ContextTypes, 
     CallbackQueryHandler, MessageHandler, filters
@@ -341,7 +341,8 @@ class BirthdayBot:
         today = datetime.now(self.timezone)
         birthdays = self.load_birthdays()
         
-        application = Application.builder().token(self.bot_token).build()
+        # Создаем экземпляр бота напрямую, без использования Updater
+        bot = Bot(token=self.bot_token)
         
         for chat_id in self.admin_chats:
             chat_birthdays = birthdays.get(str(chat_id), {})
@@ -355,7 +356,7 @@ class BirthdayBot:
                 for name in today_celebrants:
                     congratulation = random.choice(self.congratulations).format(name=name)
                     try:
-                        await application.bot.send_message(
+                        await bot.send_message(
                             chat_id=chat_id,
                             text=f"🎉 Напоминание о дне рождения!\n\n{congratulation}"
                         )
@@ -430,11 +431,11 @@ class BirthdayBot:
         port = int(os.environ.get("PORT", self.port))
         print(f"🔄 Запуск на порту: {port}")
         
+        # Используем метод без создания Updater для версии 20.6
         await application.run_webhook(
             listen="0.0.0.0",
             port=port,
-            url_path=webhook_path,
-            webhook_url=webhook_url
+            url_path=webhook_path
         )
 
 if __name__ == "__main__":
