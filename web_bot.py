@@ -394,8 +394,18 @@ class BirthdayBot:
             print("WEBHOOK_URL=https://your-app-name.onrender.com")
             return
         
-        # Настройка приложения
-        application = Application.builder().token(self.bot_token).build()
+        # Создаем бота напрямую
+        from telegram import Bot
+        from telegram.ext import Application, Defaults
+        
+        # Настройка приложения без использования Updater
+        defaults = Defaults(parse_mode="HTML")
+        application = (
+            Application.builder()
+            .token(self.bot_token)
+            .defaults(defaults)
+            .build()
+        )
         
         # Добавляем обработчики команд
         application.add_handler(CommandHandler("start", self.start))
@@ -424,19 +434,53 @@ class BirthdayBot:
         print(f"🤖 Бот запущен на веб-хуке: {webhook_url}")
         print(f"📋 Доступные команды: /start, /add, /list, /delete, /today, /upcoming, /help")
         
-        # Запускаем бота с веб-хуком
-        await application.bot.set_webhook(url=webhook_url)
+        # Устанавливаем веб-хук
+        bot = Bot(token=self.bot_token)
+        await bot.set_webhook(url=webhook_url)
         
         # Явно указываем порт из переменной окружения
         port = int(os.environ.get("PORT", self.port))
         print(f"🔄 Запуск на порту: {port}")
         
-        # Используем метод без создания Updater для версии 20.6
-        await application.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=webhook_path
-        )
+        # Запускаем приложение без использования Updater
+        await application.initialize()
+        await application.start()
+        
+        # Настраиваем веб-сервер
+        from aiohttp import web
+        
+        async def webhook_handler(request):
+            # Получаем данные запроса
+            update_data = await request.json()
+            # Обрабатываем обновление
+            await application.process_update(update_data)
+            # Возвращаем успешный ответ
+            return web.Response()
+        
+        # Создаем веб-приложение
+        app = web.Application()
+        app.router.add_post(f"/{webhook_path}", webhook_handler)
+        
+        # Запускаем веб-сервер
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        
+        try:
+            await site.start()
+            print(f"🌐 Веб-сервер запущен на порту {port}")
+            
+            # Держим приложение запущенным
+            while True:
+                await asyncio.sleep(3600)  # Проверка каждый час
+                
+        except Exception as e:
+            print(f"❌ Ошибка: {e}")
+        finally:
+            # Останавливаем приложение при выходе
+            await runner.cleanup()
+            await application.stop()
+            await application.shutdown()
 
 if __name__ == "__main__":
     bot = BirthdayBot()

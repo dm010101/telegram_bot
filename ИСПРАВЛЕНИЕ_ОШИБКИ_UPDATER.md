@@ -67,7 +67,7 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 ## Решение проблемы
 
-Есть два способа решить эту проблему:
+Есть три способа решить эту проблему:
 
 ### Способ 1: Понизить версию библиотеки (рекомендуется)
 
@@ -78,7 +78,7 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 2. Перезапустите деплой на Render.
 
-### Способ 2: Изменить код бота
+### Способ 2: Изменить код бота (удалить параметр webhook_url)
 
 Если по каким-то причинам вы хотите использовать версию 20.8, необходимо:
 
@@ -106,6 +106,70 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
        await bot.send_message(...)
    ```
 
+### Способ 3: Полностью избежать использования Updater (наиболее надежное решение)
+
+Это решение полностью избегает использования класса Updater и использует aiohttp для обработки веб-хуков:
+
+1. Добавьте библиотеку aiohttp в `requirements.txt`:
+   ```
+   aiohttp==3.9.3
+   ```
+
+2. Полностью переработайте метод `run_webhook()`:
+   ```python
+   async def run_webhook(self):
+       # ...
+       # Создаем бота напрямую
+       from telegram import Bot
+       from telegram.ext import Application, Defaults
+       
+       # Настройка приложения без использования Updater
+       defaults = Defaults(parse_mode="HTML")
+       application = (
+           Application.builder()
+           .token(self.bot_token)
+           .defaults(defaults)
+           .build()
+       )
+       
+       # ... добавляем обработчики команд ...
+       
+       # Устанавливаем веб-хук
+       bot = Bot(token=self.bot_token)
+       await bot.set_webhook(url=webhook_url)
+       
+       # Запускаем приложение без использования Updater
+       await application.initialize()
+       await application.start()
+       
+       # Настраиваем веб-сервер с aiohttp
+       from aiohttp import web
+       
+       async def webhook_handler(request):
+           update_data = await request.json()
+           await application.process_update(update_data)
+           return web.Response()
+       
+       # Создаем и запускаем веб-приложение
+       app = web.Application()
+       app.router.add_post(f"/{webhook_path}", webhook_handler)
+       
+       runner = web.AppRunner(app)
+       await runner.setup()
+       site = web.TCPSite(runner, "0.0.0.0", port)
+       
+       try:
+           await site.start()
+           # Держим приложение запущенным
+           while True:
+               await asyncio.sleep(3600)
+       finally:
+           # Останавливаем приложение при выходе
+           await runner.cleanup()
+           await application.stop()
+           await application.shutdown()
+   ```
+
 ## Дополнительная информация
 
 Если вы видите ошибки, связанные с отсутствием атрибутов у объектов (например, `У объекта "None" нет атрибута "reply_text"`), это может быть связано с проблемами в обработке обновлений от Telegram. В этом случае рекомендуется добавить дополнительные проверки на None в обработчиках команд.
@@ -113,6 +177,7 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 ## Статус исправления
 
 - [x] Понижена версия библиотеки до 20.6
-- [x] Изменен метод run_webhook()
+- [x] Изменен метод run_webhook() для использования aiohttp
+- [x] Добавлена библиотека aiohttp в зависимости
 - [x] Изменен метод check_and_send_notifications()
 - [ ] Проверена работоспособность бота после изменений 
