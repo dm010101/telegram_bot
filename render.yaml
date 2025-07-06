@@ -5,7 +5,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python web_bot.py
     envVars:
-      - key: BOT_TOKEN
+      - key: 8012067557:AAGkdq_fUfomek-ee9CRsyjm6BHZ0dEl8NA
         sync: false
       - key: TIMEZONE
         value: Europe/Moscow
