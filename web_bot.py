@@ -398,7 +398,7 @@ class BirthdayBot:
         
         # Используем Application для версии 20.x
         from telegram import Bot
-        from telegram.ext import Application, CommandHandler, CallbackQueryHandler, AIORateLimiter
+        from telegram.ext import Application, CommandHandler, CallbackQueryHandler
         from aiohttp import web
         
         # Настройка веб-хука
@@ -409,11 +409,10 @@ class BirthdayBot:
         print(f"🔄 Настройка веб-хука: {webhook_url}")
         print(f"🔄 Порт: {self.port}")
         
-        # Создаем приложение с использованием Application.builder() но без Updater
+        # Создаем приложение с использованием Application.builder() но без Updater и без AIORateLimiter
         application = (
             Application.builder()
             .token(self.bot_token)
-            .rate_limiter(AIORateLimiter())
             .build()
         )
         
@@ -468,16 +467,14 @@ class BirthdayBot:
         # Добавляем маршрут для проверки работоспособности
         app.router.add_get("/", health_check)
         
-        # Запускаем веб-сервер
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        
         try:
             # Запускаем приложение
             await application.start()
             
             # Запускаем веб-сервер
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, "0.0.0.0", port)
             await site.start()
             print(f"🌐 Веб-сервер запущен на порту {port}")
             

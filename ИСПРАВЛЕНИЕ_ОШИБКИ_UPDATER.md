@@ -125,14 +125,13 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
        # ...
        # Используем Application для версии 20.x
        from telegram import Bot
-       from telegram.ext import Application, CommandHandler, CallbackQueryHandler, AIORateLimiter
+       from telegram.ext import Application, CommandHandler, CallbackQueryHandler
        from aiohttp import web
        
        # Создаем приложение с использованием Application.builder() но без Updater
        application = (
            Application.builder()
            .token(self.bot_token)
-           .rate_limiter(AIORateLimiter())
            .build()
        )
        
@@ -172,6 +171,31 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 ## Дополнительная информация
 
+### Ошибка с AIORateLimiter
+
+Если вы увидите ошибку:
+```
+RuntimeError: To use `AIORateLimiter`, PTB must be installed via `pip install "python-telegram-bot[rate-limiter]"`.
+```
+
+Есть два способа решить эту проблему:
+
+1. Установите python-telegram-bot с опцией rate-limiter:
+   ```
+   python-telegram-bot[rate-limiter]==20.6
+   ```
+
+2. Удалите использование AIORateLimiter из кода:
+   ```python
+   application = (
+       Application.builder()
+       .token(self.bot_token)
+       .build()  # Без .rate_limiter(AIORateLimiter())
+   )
+   ```
+
+### Проблемы с атрибутами None
+
 Если вы видите ошибки, связанные с отсутствием атрибутов у объектов (например, `У объекта "None" нет атрибута "reply_text"`), это может быть связано с проблемами в обработке обновлений от Telegram. В этом случае рекомендуется добавить дополнительные проверки на None в обработчиках команд.
 
 ## Статус исправления
@@ -180,6 +204,8 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 - [x] Попытка использования Dispatcher напрямую (не сработало из-за отсутствия класса в текущей версии)
 - [x] Добавлена библиотека aiohttp в зависимости
 - [x] Изменен метод run_webhook() для использования Application.builder() с aiohttp
+- [x] Удалено использование AIORateLimiter
+- [x] Обновлен requirements.txt для установки python-telegram-bot с опцией rate-limiter
 - [x] Изменен метод check_and_send_notifications()
 - [x] Добавлен обработчик для проверки работоспособности по маршруту "/"
 - [ ] Проверена работоспособность бота после изменений 
