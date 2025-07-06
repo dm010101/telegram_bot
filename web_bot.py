@@ -20,17 +20,35 @@ from telegram.ext import (
     CallbackQueryHandler, MessageHandler, filters
 )
 
+# Отладочный вывод переменных окружения
+print("🔍 Проверка переменных окружения:")
+print(f"BOT_TOKEN: {'✅ Установлен' if os.environ.get('BOT_TOKEN') else '❌ Отсутствует'}")
+print(f"TIMEZONE: {os.environ.get('TIMEZONE', 'Не установлен')}")
+print(f"WEBHOOK_URL: {'✅ Установлен' if os.environ.get('WEBHOOK_URL') else '❌ Отсутствует'}")
+print(f"PORT: {os.environ.get('PORT', 'Не установлен')}")
+
+# Создаем файл .env, если он не существует
+if not os.path.exists('.env'):
+    try:
+        with open('.env', 'w') as f:
+            f.write(f"BOT_TOKEN={os.environ.get('BOT_TOKEN', '')}\n")
+            f.write(f"TIMEZONE={os.environ.get('TIMEZONE', 'Europe/Moscow')}\n")
+            f.write(f"WEBHOOK_URL={os.environ.get('WEBHOOK_URL', '')}\n")
+        print("✅ Файл .env создан на основе переменных окружения")
+    except Exception as e:
+        print(f"❌ Ошибка при создании файла .env: {e}")
+
 # Загружаем переменные окружения
 load_dotenv()
 
 class BirthdayBot:
     def __init__(self):
-        self.bot_token = os.getenv('BOT_TOKEN')
-        self.timezone = pytz.timezone(os.getenv('TIMEZONE', 'Europe/Moscow'))
+        self.bot_token = os.environ.get('BOT_TOKEN') or os.getenv('BOT_TOKEN')
+        self.timezone = pytz.timezone(os.environ.get('TIMEZONE') or os.getenv('TIMEZONE', 'Europe/Moscow'))
         self.birthdays_file = 'birthdays.json'
         self.admin_chats = set()  # Чаты где бот может отправлять уведомления
-        self.webhook_url = os.getenv('WEBHOOK_URL')
-        self.port = int(os.getenv('PORT', 10000))
+        self.webhook_url = os.environ.get('WEBHOOK_URL') or os.getenv('WEBHOOK_URL')
+        self.port = int(os.environ.get('PORT') or os.getenv('PORT', 10000))
         
         # Шаблоны поздравлений
         self.congratulations = [
@@ -407,9 +425,14 @@ class BirthdayBot:
         
         # Запускаем бота с веб-хуком
         await application.bot.set_webhook(url=webhook_url)
+        
+        # Явно указываем порт из переменной окружения
+        port = int(os.environ.get("PORT", self.port))
+        print(f"🔄 Запуск на порту: {port}")
+        
         await application.run_webhook(
             listen="0.0.0.0",
-            port=self.port,
+            port=port,
             url_path=webhook_path,
             webhook_url=webhook_url
         )
