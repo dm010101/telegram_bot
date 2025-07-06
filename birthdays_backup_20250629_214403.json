@@ -1,0 +1,94 @@
+{
+  "example_chat": {
+    "Макс": {
+      "day": 14,
+      "month": 1,
+      "year": null
+    },
+    "Ниночка": {
+      "day": 25,
+      "month": 1,
+      "year": null
+    },
+    "Виталяс": {
+      "day": 16,
+      "month": 4,
+      "year": null
+    },
+    "Ксюша": {
+      "day": 5,
+      "month": 5,
+      "year": null
+    },
+    "Аня": {
+      "day": 6,
+      "month": 5,
+      "year": null
+    },
+    "Валя": {
+      "day": 6,
+      "month": 5,
+      "year": null
+    },
+    "Паша": {
+      "day": 6,
+      "month": 5,
+      "year": null
+    },
+    "Анюта": {
+      "day": 15,
+      "month": 5,
+      "year": null
+    },
+    "Сережа": {
+      "day": 29,
+      "month": 6,
+      "year": null
+    },
+    "Кристи": {
+      "day": 16,
+      "month": 7,
+      "year": null
+    },
+    "Тимурик": {
+      "day": 18,
+      "month": 7,
+      "year": null
+    },
+    "Гоша": {
+      "day": 6,
+      "month": 8,
+      "year": null
+    },
+    "Алена": {
+      "day": 20,
+      "month": 8,
+      "year": null
+    },
+    "Слава": {
+      "day": 26,
+      "month": 8,
+      "year": null
+    },
+    "Дима": {
+      "day": 23,
+      "month": 9,
+      "year": null
+    },
+    "Радик": {
+      "day": 28,
+      "month": 9,
+      "year": null
+    },
+    "Саша": {
+      "day": 2,
+      "month": 10,
+      "year": null
+    },
+    "Юля": {
+      "day": 14,
+      "month": 12,
+      "year": null
+    }
+  }
+} 
