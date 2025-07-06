@@ -45,8 +45,10 @@ class BirthdayBot:
     def __init__(self):
         self.bot_token = os.environ.get('BOT_TOKEN') or os.getenv('BOT_TOKEN')
         self.timezone = pytz.timezone(os.environ.get('TIMEZONE') or os.getenv('TIMEZONE', 'Europe/Moscow'))
-        self.birthdays_file = 'birthdays.json'
-        self.weddings_file = 'weddings.json'  # Добавляем файл свадеб
+        # Используем абсолютные пути к файлам
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.birthdays_file = os.path.join(self.current_dir, 'birthdays.json')
+        self.weddings_file = os.path.join(self.current_dir, 'weddings.json')
         self.admin_chats = set()  # Чаты где бот может отправлять уведомления
         self.webhook_url = os.environ.get('WEBHOOK_URL') or os.getenv('WEBHOOK_URL')
         self.port = int(os.environ.get('PORT') or os.getenv('PORT', 10000))
@@ -73,13 +75,20 @@ class BirthdayBot:
         """Загружает дни рождения из файла"""
         try:
             if Path(self.birthdays_file).exists():
+                print(f"🔍 Файл {self.birthdays_file} существует, пытаюсь загрузить...")
                 with open(self.birthdays_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    print(f"✅ Данные успешно загружены: {list(data.keys()) if data else 'пусто'}")
+                    return data
+            else:
+                print(f"❌ Файл {self.birthdays_file} не существует")
             # Создаем пустой файл, если он не существует
             self.save_birthdays({})
             return {}
         except Exception as e:
-            print(f"Ошибка загрузки файла дней рождения: {e}")
+            print(f"❌ Ошибка загрузки файла дней рождения: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
     
     def save_birthdays(self, birthdays: Dict):
@@ -287,7 +296,10 @@ class BirthdayBot:
     async def list_birthdays(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /list для показа всех дней рождения"""
         birthdays = self.load_birthdays()
+        print(f"📋 Загруженные дни рождения: {birthdays}")
+        
         chat_id = str(update.effective_chat.id)
+        print(f"🆔 ID чата: {chat_id}")
         
         if chat_id not in birthdays or not birthdays[chat_id]:
             await update.message.reply_text("📝 Список дней рождения пуст!")
