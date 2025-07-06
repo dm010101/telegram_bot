@@ -106,60 +106,65 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
        await bot.send_message(...)
    ```
 
-### Способ 3: Полностью избежать использования Application.builder() и Updater (окончательное решение)
+### Способ 3: Полностью избежать использования Application.builder() и Updater (не сработало)
 
-Это решение полностью избегает использования классов Application.builder() и Updater:
+Это решение полностью избегает использования классов Application.builder() и Updater, но оказалось, что класса `Dispatcher` больше нет в текущей версии библиотеки.
+
+### Способ 4: Использовать Application.builder() с aiohttp (окончательное решение)
+
+Это решение использует Application.builder(), но избегает использования Updater и встроенного веб-сервера:
 
 1. Добавьте библиотеку aiohttp в `requirements.txt`:
    ```
    aiohttp==3.9.3
    ```
 
-2. Полностью переработайте метод `run_webhook()`:
+2. Переработайте метод `run_webhook()`:
    ```python
    async def run_webhook(self):
        # ...
-       # Создаем бота напрямую без использования Application.builder()
+       # Используем Application для версии 20.x
        from telegram import Bot
-       from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
+       from telegram.ext import Application, CommandHandler, CallbackQueryHandler, AIORateLimiter
        from aiohttp import web
        
-       # Создаем бота
-       bot = Bot(token=self.bot_token)
+       # Создаем приложение с использованием Application.builder() но без Updater
+       application = (
+           Application.builder()
+           .token(self.bot_token)
+           .rate_limiter(AIORateLimiter())
+           .build()
+       )
        
-       # Создаем диспетчер вручную
-       dispatcher = Dispatcher()
-       
-       # Регистрируем обработчики команд
-       dispatcher.add_handler(CommandHandler("start", self.start))
+       # Добавляем обработчики команд
+       application.add_handler(CommandHandler("start", self.start))
        # ... добавляем остальные обработчики ...
        
-       # Устанавливаем веб-хук
-       await bot.set_webhook(url=webhook_url)
+       # Инициализируем приложение
+       await application.initialize()
        
-       # Создаем обработчик веб-хуков
+       # Настраиваем веб-хук
+       await application.bot.set_webhook(url=webhook_url)
+       
+       # Запускаем веб-приложение с aiohttp
        async def webhook_handler(request):
            update_data = await request.json()
-           
-           # Создаем объект Update из JSON
-           from telegram import Update
-           update = Update.de_json(data=update_data, bot=bot)
-           
-           # Обрабатываем обновление через диспетчер
-           await dispatcher.process_update(update)
-           
+           await application.process_update(update_data)
            return web.Response()
        
-       # Создаем и запускаем веб-приложение с aiohttp
+       # Создаем веб-приложение
        app = web.Application()
        app.router.add_post(f"/{webhook_path}", webhook_handler)
        app.router.add_get("/", lambda request: web.Response(text="Бот работает!"))
        
+       # Запускаем приложение и веб-сервер
+       await application.start()
+       
        runner = web.AppRunner(app)
        await runner.setup()
        site = web.TCPSite(runner, "0.0.0.0", port)
-       
        await site.start()
+       
        # Держим приложение запущенным
        while True:
            await asyncio.sleep(3600)
@@ -172,8 +177,9 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 ## Статус исправления
 
 - [x] Понижена версия библиотеки до 20.6 (не помогло)
-- [x] Полностью переработан метод run_webhook() для использования Dispatcher напрямую
+- [x] Попытка использования Dispatcher напрямую (не сработало из-за отсутствия класса в текущей версии)
 - [x] Добавлена библиотека aiohttp в зависимости
+- [x] Изменен метод run_webhook() для использования Application.builder() с aiohttp
 - [x] Изменен метод check_and_send_notifications()
 - [x] Добавлен обработчик для проверки работоспособности по маршруту "/"
 - [ ] Проверена работоспособность бота после изменений 
