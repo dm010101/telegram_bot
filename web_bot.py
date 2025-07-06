@@ -341,7 +341,8 @@ class BirthdayBot:
         today = datetime.now(self.timezone)
         birthdays = self.load_birthdays()
         
-        # Создаем экземпляр бота напрямую, без использования Updater
+        # Создаем экземпляр бота напрямую
+        from telegram import Bot
         bot = Bot(token=self.bot_token)
         
         for chat_id in self.admin_chats:
@@ -358,7 +359,8 @@ class BirthdayBot:
                     try:
                         await bot.send_message(
                             chat_id=chat_id,
-                            text=f"🎉 Напоминание о дне рождения!\n\n{congratulation}"
+                            text=f"🎉 Напоминание о дне рождения!\n\n{congratulation}",
+                            parse_mode="HTML"
                         )
                     except Exception as e:
                         print(f"Ошибка отправки уведомления в чат {chat_id}: {e}")
@@ -394,33 +396,13 @@ class BirthdayBot:
             print("WEBHOOK_URL=https://your-app-name.onrender.com")
             return
         
-        # Создаем бота напрямую
+        # Создаем бота напрямую без использования Application.builder()
         from telegram import Bot
-        from telegram.ext import Application, Defaults
+        from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
+        from aiohttp import web
         
-        # Настройка приложения без использования Updater
-        defaults = Defaults(parse_mode="HTML")
-        application = (
-            Application.builder()
-            .token(self.bot_token)
-            .defaults(defaults)
-            .build()
-        )
-        
-        # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", self.start))
-        application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(CommandHandler("add", self.add_birthday))
-        application.add_handler(CommandHandler("list", self.list_birthdays))
-        application.add_handler(CommandHandler("delete", self.delete_birthday))
-        application.add_handler(CommandHandler("today", self.today_birthdays))
-        application.add_handler(CommandHandler("upcoming", self.upcoming_birthdays))
-        application.add_handler(CommandHandler("enable_notifications", self.enable_notifications))
-        application.add_handler(CallbackQueryHandler(self.button_callback))
-        
-        # Настраиваем планировщик уведомлений
-        self.schedule_notifications()
-        self.start_scheduler_thread()
+        # Создаем бота
+        bot = Bot(token=self.bot_token)
         
         # Настройка веб-хука
         webhook_path = "telegram"
@@ -430,36 +412,60 @@ class BirthdayBot:
         print(f"🔄 Настройка веб-хука: {webhook_url}")
         print(f"🔄 Порт: {self.port}")
         
+        # Создаем диспетчер вручную
+        dispatcher = Dispatcher()
+        
+        # Регистрируем обработчики команд
+        dispatcher.add_handler(CommandHandler("start", self.start))
+        dispatcher.add_handler(CommandHandler("help", self.help_command))
+        dispatcher.add_handler(CommandHandler("add", self.add_birthday))
+        dispatcher.add_handler(CommandHandler("list", self.list_birthdays))
+        dispatcher.add_handler(CommandHandler("delete", self.delete_birthday))
+        dispatcher.add_handler(CommandHandler("today", self.today_birthdays))
+        dispatcher.add_handler(CommandHandler("upcoming", self.upcoming_birthdays))
+        dispatcher.add_handler(CommandHandler("enable_notifications", self.enable_notifications))
+        dispatcher.add_handler(CallbackQueryHandler(self.button_callback))
+        
+        # Настраиваем планировщик уведомлений
+        self.schedule_notifications()
+        self.start_scheduler_thread()
+        
         # Запуск веб-хука
         print(f"🤖 Бот запущен на веб-хуке: {webhook_url}")
         print(f"📋 Доступные команды: /start, /add, /list, /delete, /today, /upcoming, /help")
         
         # Устанавливаем веб-хук
-        bot = Bot(token=self.bot_token)
         await bot.set_webhook(url=webhook_url)
         
         # Явно указываем порт из переменной окружения
         port = int(os.environ.get("PORT", self.port))
         print(f"🔄 Запуск на порту: {port}")
         
-        # Запускаем приложение без использования Updater
-        await application.initialize()
-        await application.start()
-        
-        # Настраиваем веб-сервер
-        from aiohttp import web
-        
+        # Создаем обработчик веб-хуков
         async def webhook_handler(request):
             # Получаем данные запроса
             update_data = await request.json()
-            # Обрабатываем обновление
-            await application.process_update(update_data)
+            
+            # Создаем объект Update из JSON
+            from telegram import Update
+            update = Update.de_json(data=update_data, bot=bot)
+            
+            # Обрабатываем обновление через диспетчер
+            await dispatcher.process_update(update)
+            
             # Возвращаем успешный ответ
             return web.Response()
         
         # Создаем веб-приложение
         app = web.Application()
         app.router.add_post(f"/{webhook_path}", webhook_handler)
+        
+        # Создаем обработчик для проверки работоспособности
+        async def health_check(request):
+            return web.Response(text="Бот работает!")
+        
+        # Добавляем маршрут для проверки работоспособности
+        app.router.add_get("/", health_check)
         
         # Запускаем веб-сервер
         runner = web.AppRunner(app)
@@ -479,8 +485,6 @@ class BirthdayBot:
         finally:
             # Останавливаем приложение при выходе
             await runner.cleanup()
-            await application.stop()
-            await application.shutdown()
 
 if __name__ == "__main__":
     bot = BirthdayBot()

@@ -67,9 +67,9 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 ## Решение проблемы
 
-Есть три способа решить эту проблему:
+Есть несколько способов решить эту проблему:
 
-### Способ 1: Понизить версию библиотеки (рекомендуется)
+### Способ 1: Понизить версию библиотеки (не сработало)
 
 1. Измените версию библиотеки в файле `requirements.txt`:
    ```
@@ -106,9 +106,9 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
        await bot.send_message(...)
    ```
 
-### Способ 3: Полностью избежать использования Updater (наиболее надежное решение)
+### Способ 3: Полностью избежать использования Application.builder() и Updater (окончательное решение)
 
-Это решение полностью избегает использования класса Updater и использует aiohttp для обработки веб-хуков:
+Это решение полностью избегает использования классов Application.builder() и Updater:
 
 1. Добавьте библиотеку aiohttp в `requirements.txt`:
    ```
@@ -119,55 +119,50 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
    ```python
    async def run_webhook(self):
        # ...
-       # Создаем бота напрямую
+       # Создаем бота напрямую без использования Application.builder()
        from telegram import Bot
-       from telegram.ext import Application, Defaults
-       
-       # Настройка приложения без использования Updater
-       defaults = Defaults(parse_mode="HTML")
-       application = (
-           Application.builder()
-           .token(self.bot_token)
-           .defaults(defaults)
-           .build()
-       )
-       
-       # ... добавляем обработчики команд ...
-       
-       # Устанавливаем веб-хук
-       bot = Bot(token=self.bot_token)
-       await bot.set_webhook(url=webhook_url)
-       
-       # Запускаем приложение без использования Updater
-       await application.initialize()
-       await application.start()
-       
-       # Настраиваем веб-сервер с aiohttp
+       from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
        from aiohttp import web
        
+       # Создаем бота
+       bot = Bot(token=self.bot_token)
+       
+       # Создаем диспетчер вручную
+       dispatcher = Dispatcher()
+       
+       # Регистрируем обработчики команд
+       dispatcher.add_handler(CommandHandler("start", self.start))
+       # ... добавляем остальные обработчики ...
+       
+       # Устанавливаем веб-хук
+       await bot.set_webhook(url=webhook_url)
+       
+       # Создаем обработчик веб-хуков
        async def webhook_handler(request):
            update_data = await request.json()
-           await application.process_update(update_data)
+           
+           # Создаем объект Update из JSON
+           from telegram import Update
+           update = Update.de_json(data=update_data, bot=bot)
+           
+           # Обрабатываем обновление через диспетчер
+           await dispatcher.process_update(update)
+           
            return web.Response()
        
-       # Создаем и запускаем веб-приложение
+       # Создаем и запускаем веб-приложение с aiohttp
        app = web.Application()
        app.router.add_post(f"/{webhook_path}", webhook_handler)
+       app.router.add_get("/", lambda request: web.Response(text="Бот работает!"))
        
        runner = web.AppRunner(app)
        await runner.setup()
        site = web.TCPSite(runner, "0.0.0.0", port)
        
-       try:
-           await site.start()
-           # Держим приложение запущенным
-           while True:
-               await asyncio.sleep(3600)
-       finally:
-           # Останавливаем приложение при выходе
-           await runner.cleanup()
-           await application.stop()
-           await application.shutdown()
+       await site.start()
+       # Держим приложение запущенным
+       while True:
+           await asyncio.sleep(3600)
    ```
 
 ## Дополнительная информация
@@ -176,8 +171,9 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 ## Статус исправления
 
-- [x] Понижена версия библиотеки до 20.6
-- [x] Изменен метод run_webhook() для использования aiohttp
+- [x] Понижена версия библиотеки до 20.6 (не помогло)
+- [x] Полностью переработан метод run_webhook() для использования Dispatcher напрямую
 - [x] Добавлена библиотека aiohttp в зависимости
 - [x] Изменен метод check_and_send_notifications()
+- [x] Добавлен обработчик для проверки работоспособности по маршруту "/"
 - [ ] Проверена работоспособность бота после изменений 
