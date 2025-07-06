@@ -46,17 +46,27 @@ class BirthdayBot:
         self.bot_token = os.environ.get('BOT_TOKEN') or os.getenv('BOT_TOKEN')
         self.timezone = pytz.timezone(os.environ.get('TIMEZONE') or os.getenv('TIMEZONE', 'Europe/Moscow'))
         self.birthdays_file = 'birthdays.json'
+        self.weddings_file = 'weddings.json'  # Добавляем файл свадеб
         self.admin_chats = set()  # Чаты где бот может отправлять уведомления
         self.webhook_url = os.environ.get('WEBHOOK_URL') or os.getenv('WEBHOOK_URL')
         self.port = int(os.environ.get('PORT') or os.getenv('PORT', 10000))
         
-        # Шаблоны поздравлений
+        # Шаблоны поздравлений с днем рождения
         self.congratulations = [
             "🎉 Поздравляем с днём рождения, {name}! Желаем счастья, здоровья и исполнения всех желаний! 🎂",
             "🎊 С днём рождения, {name}! Пусть этот день принесёт радость и улыбки! 🎈",
             "🎁 Дорогой {name}, поздравляем с днём рождения! Желаем ярких моментов и прекрасного настроения! ✨",
             "🌟 {name}, с днём рождения! Пусть впереди ждут только хорошие события! 🎉",
             "🎂 Поздравляем {name} с днём рождения! Желаем крепкого здоровья и море позитива! 🎊"
+        ]
+        
+        # Шаблоны поздравлений со свадьбой
+        self.wedding_congratulations = [
+            "💍 Поздравляем {names} с годовщиной свадьбы! Желаем любви, гармонии и счастья! 💑",
+            "💖 С годовщиной свадьбы, {names}! Пусть ваша любовь становится только крепче! 🥂",
+            "💐 Дорогие {names}, поздравляем с годовщиной! Желаем долгих лет совместной жизни! 🎉",
+            "🎊 {names}, с годовщиной свадьбы! Пусть ваша семья будет крепкой и счастливой! 💞",
+            "🌹 Поздравляем {names} с годовщиной! Любви, терпения и взаимопонимания! 💕"
         ]
     
     def load_birthdays(self) -> Dict:
@@ -80,17 +90,46 @@ class BirthdayBot:
         except Exception as e:
             print(f"Ошибка сохранения файла дней рождения: {e}")
     
+    def load_weddings(self) -> Dict:
+        """Загружает свадьбы из файла"""
+        try:
+            if Path(self.weddings_file).exists():
+                with open(self.weddings_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            # Создаем пустой файл, если он не существует
+            self.save_weddings({})
+            return {}
+        except Exception as e:
+            print(f"Ошибка загрузки файла свадеб: {e}")
+            return {}
+    
+    def save_weddings(self, weddings: Dict):
+        """Сохраняет свадьбы в файл"""
+        try:
+            with open(self.weddings_file, 'w', encoding='utf-8') as f:
+                json.dump(weddings, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения файла свадеб: {e}")
+    
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /start"""
         welcome_text = """
-🎉 Привет! Я бот для напоминаний о днях рождения!
+🎉 Привет! Я бот для напоминаний о днях рождения и свадьбах!
 
-📋 Доступные команды:
+📋 Доступные команды для дней рождения:
 /add - Добавить день рождения
 /list - Показать все дни рождения
 /delete - Удалить день рождения
 /today - Проверить, есть ли именинники сегодня
 /upcoming - Ближайшие дни рождения (на неделю)
+
+📋 Доступные команды для свадеб:
+/add_wedding - Добавить свадьбу
+/list_weddings - Показать все свадьбы
+/delete_wedding - Удалить свадьбу
+/today_weddings - Проверить, есть ли годовщины свадеб сегодня
+/upcoming_weddings - Ближайшие годовщины свадеб (на неделю)
+
 /help - Показать помощь
 
 🔔 Чтобы получать автоматические уведомления, используйте /enable_notifications
@@ -107,23 +146,28 @@ class BirthdayBot:
         help_text = """
 🆘 Помощь по командам:
 
-🔸 /add - Добавить новый день рождения
+🔸 Дни рождения:
+/add - Добавить новый день рождения
    Формат: /add Иван 15.03 или /add Иван 15.03.1990
+/list - Показать всех именинников
+/delete - Удалить день рождения
+/today - Проверить именинников сегодня
+/upcoming - Ближайшие дни рождения
 
-🔸 /list - Показать всех именинников
+🔸 Свадьбы:
+/add_wedding - Добавить свадьбу
+   Формат: /add_wedding "Иван и Мария" 15.03.2020
+/list_weddings - Показать все свадьбы
+/delete_wedding - Удалить свадьбу
+/today_weddings - Проверить годовщины свадеб сегодня
+/upcoming_weddings - Ближайшие годовщины свадеб
 
-🔸 /delete - Удалить день рождения
-   Выберите из списка кого удалить
-
-🔸 /today - Проверить именинников сегодня
-
-🔸 /upcoming - Ближайшие дни рождения
-
-🔸 /enable_notifications - Включить автоуведомления
+🔸 Другие команды:
+/enable_notifications - Включить автоуведомления
 
 📝 Примеры:
 /add Мария 25.12
-/add Петр 08.07.1985
+/add_wedding "Иван и Мария" 15.03.2020
         """
         await update.message.reply_text(help_text)
     
@@ -181,6 +225,65 @@ class BirthdayBot:
                 "Пример: 15.03 или 15.03.1990"
             )
     
+    async def add_wedding(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /add_wedding для добавления свадьбы"""
+        if not update.message:
+            return
+            
+        message_text = update.message.text
+        
+        # Извлекаем имена в кавычках
+        import re
+        match = re.search(r'"([^"]+)"', message_text if message_text else "")
+        
+        if not match or not context.args or len(context.args) < 2:
+            await update.message.reply_text(
+                "❌ Неправильный формат!\n"
+                'Используйте: /add_wedding "Имена пары" ДД.ММ.ГГГГ\n'
+                'Пример: /add_wedding "Иван и Мария" 15.03.2020'
+            )
+            return
+        
+        names = match.group(1)
+        date_str = context.args[-1]  # Берем последний аргумент как дату
+        
+        try:
+            # Парсим дату
+            day, month, year = date_str.split('.')
+            day, month, year = int(day), int(month), int(year)
+            
+            # Проверяем корректность даты
+            if not (1 <= day <= 31 and 1 <= month <= 12):
+                raise ValueError("Некорректная дата")
+            
+            weddings = self.load_weddings()
+            chat_id = str(update.effective_chat.id)
+            
+            if chat_id not in weddings:
+                weddings[chat_id] = {}
+            
+            weddings[chat_id][names] = {
+                'day': day,
+                'month': month,
+                'year': year,
+                'names': names
+            }
+            
+            self.save_weddings(weddings)
+            
+            years_married = datetime.now().year - year
+            await update.message.reply_text(
+                f"✅ Свадьба {names} ({day:02d}.{month:02d}.{year}) успешно добавлена!\n"
+                f"В этом году будет {years_married} лет вместе."
+            )
+            
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Неправильный формат даты!\n"
+                "Используйте: ДД.ММ.ГГГГ\n"
+                "Пример: 15.03.2020"
+            )
+    
     async def list_birthdays(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /list для показа всех дней рождения"""
         birthdays = self.load_birthdays()
@@ -210,6 +313,36 @@ class BirthdayBot:
         
         await update.message.reply_text(text)
     
+    async def list_weddings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /list_weddings для показа всех свадеб"""
+        if not update.message:
+            return
+            
+        weddings = self.load_weddings()
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id not in weddings or not weddings[chat_id]:
+            await update.message.reply_text("📝 Список свадеб пуст!")
+            return
+        
+        text = "💍 Список свадеб:\n\n"
+        
+        # Сортируем по дате
+        sorted_weddings = sorted(
+            weddings[chat_id].items(),
+            key=lambda x: (x[1]['month'], x[1]['day'])
+        )
+        
+        for name, data in sorted_weddings:
+            day = data['day']
+            month = data['month']
+            year = data['year']
+            years_married = datetime.now().year - year
+            
+            text += f"💑 {name}: {day:02d}.{month:02d}.{year} ({years_married} лет)\n"
+        
+        await update.message.reply_text(text)
+    
     async def delete_birthday(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /delete для удаления дня рождения"""
         birthdays = self.load_birthdays()
@@ -229,6 +362,33 @@ class BirthdayBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
             "🗑️ Выберите, кого удалить:",
+            reply_markup=reply_markup
+        )
+    
+    async def delete_wedding(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /delete_wedding для удаления свадьбы"""
+        if not update.message:
+            return
+            
+        weddings = self.load_weddings()
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id not in weddings or not weddings[chat_id]:
+            await update.message.reply_text("📝 Список свадеб пуст!")
+            return
+        
+        # Создаем клавиатуру с именами
+        keyboard = []
+        for name in weddings[chat_id].keys():
+            keyboard.append([InlineKeyboardButton(name, callback_data=f"delete_wedding_{name}")])
+        
+        # Добавляем кнопку отмены
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "Выберите свадьбу для удаления:",
             reply_markup=reply_markup
         )
     
@@ -254,6 +414,36 @@ class BirthdayBot:
                 text += f"{congratulation}\n\n"
         else:
             text = "📅 Сегодня именинников нет!"
+        
+        await update.message.reply_text(text)
+    
+    async def today_weddings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /today_weddings для показа сегодняшних годовщин свадеб"""
+        if not update.message:
+            return
+            
+        today = datetime.now(self.timezone)
+        weddings = self.load_weddings()
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id not in weddings:
+            await update.message.reply_text("📝 Список свадеб пуст!")
+            return
+        
+        today_weddings = []
+        for name, data in weddings[chat_id].items():
+            if data['day'] == today.day and data['month'] == today.month:
+                years_married = today.year - data['year']
+                today_weddings.append((name, years_married))
+        
+        if today_weddings:
+            text = "💍 Сегодня годовщина свадьбы у:\n\n"
+            for name, years in today_weddings:
+                congratulation = random.choice(self.wedding_congratulations).format(names=name)
+                text += f"{congratulation}\n"
+                text += f"Сегодня {years} лет вместе! 🎉\n\n"
+        else:
+            text = "📅 Сегодня годовщин свадеб нет!"
         
         await update.message.reply_text(text)
     
@@ -301,6 +491,54 @@ class BirthdayBot:
         
         await update.message.reply_text(text)
     
+    async def upcoming_weddings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /upcoming_weddings для показа ближайших годовщин свадеб"""
+        if not update.message:
+            return
+            
+        today = datetime.now(self.timezone)
+        weddings = self.load_weddings()
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id not in weddings:
+            await update.message.reply_text("📝 Список свадеб пуст!")
+            return
+        
+        upcoming = []
+        for name, data in weddings[chat_id].items():
+            # Создаем дату годовщины в этом году
+            try:
+                wedding_this_year = datetime(today.year, data['month'], data['day'])
+                if wedding_this_year < today:
+                    # Если годовщина уже прошла в этом году, берем следующий год
+                    wedding_this_year = datetime(today.year + 1, data['month'], data['day'])
+                
+                days_until = (wedding_this_year - today).days
+                years_married = wedding_this_year.year - data['year']
+                
+                if 0 <= days_until <= 7:
+                    upcoming.append((name, data, days_until, wedding_this_year, years_married))
+            except ValueError:
+                # Обрабатываем случай 29 февраля
+                continue
+        
+        if not upcoming:
+            await update.message.reply_text("📅 В ближайшую неделю годовщин свадеб нет!")
+            return
+        
+        upcoming.sort(key=lambda x: x[2])  # Сортируем по дням до годовщины
+        
+        text = "📅 Ближайшие годовщины свадеб (на неделю):\n\n"
+        for name, data, days_until, wedding_date, years_married in upcoming:
+            if days_until == 0:
+                text += f"💍 {name} - СЕГОДНЯ! ({years_married} лет вместе)\n"
+            elif days_until == 1:
+                text += f"💑 {name} - завтра ({wedding_date.strftime('%d.%m')}, {years_married} лет вместе)\n"
+            else:
+                text += f"💕 {name} - через {days_until} дней ({wedding_date.strftime('%d.%m')}, {years_married} лет вместе)\n"
+        
+        await update.message.reply_text(text)
+    
     async def enable_notifications(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Включает автоматические уведомления"""
         chat_id = update.effective_chat.id
@@ -321,31 +559,46 @@ class BirthdayBot:
             return
         
         if query.data.startswith("delete_"):
-            name = query.data[7:]  # Убираем "delete_"
-            
-            birthdays = self.load_birthdays()
-            chat_id = str(update.effective_chat.id)
-            
-            if chat_id in birthdays and name in birthdays[chat_id]:
-                del birthdays[chat_id][name]
-                self.save_birthdays(birthdays)
-                await query.edit_message_text(f"✅ День рождения {name} удален!")
+            if query.data.startswith("delete_wedding_"):
+                name = query.data[14:]  # Убираем "delete_wedding_"
+                
+                weddings = self.load_weddings()
+                chat_id = str(update.effective_chat.id)
+                
+                if chat_id in weddings and name in weddings[chat_id]:
+                    del weddings[chat_id][name]
+                    self.save_weddings(weddings)
+                    await query.edit_message_text(f"✅ Свадьба {name} удалена!")
+                else:
+                    await query.edit_message_text("❌ Ошибка при удалении!")
             else:
-                await query.edit_message_text("❌ Ошибка при удалении!")
+                name = query.data[7:]  # Убираем "delete_"
+                
+                birthdays = self.load_birthdays()
+                chat_id = str(update.effective_chat.id)
+                
+                if chat_id in birthdays and name in birthdays[chat_id]:
+                    del birthdays[chat_id][name]
+                    self.save_birthdays(birthdays)
+                    await query.edit_message_text(f"✅ День рождения {name} удален!")
+                else:
+                    await query.edit_message_text("❌ Ошибка при удалении!")
     
     async def check_and_send_notifications(self):
-        """Проверяет и отправляет уведомления о днях рождения"""
+        """Проверяет и отправляет уведомления о днях рождения и свадьбах"""
         if not self.admin_chats:
             return
         
         today = datetime.now(self.timezone)
         birthdays = self.load_birthdays()
+        weddings = self.load_weddings()
         
         # Создаем экземпляр бота напрямую
         from telegram import Bot
         bot = Bot(token=self.bot_token)
         
         for chat_id in self.admin_chats:
+            # Проверяем дни рождения
             chat_birthdays = birthdays.get(str(chat_id), {})
             
             today_celebrants = []
@@ -363,7 +616,28 @@ class BirthdayBot:
                             parse_mode="HTML"
                         )
                     except Exception as e:
-                        print(f"Ошибка отправки уведомления в чат {chat_id}: {e}")
+                        print(f"Ошибка отправки уведомления о дне рождения в чат {chat_id}: {e}")
+            
+            # Проверяем свадьбы
+            chat_weddings = weddings.get(str(chat_id), {})
+            
+            today_wedding_celebrants = []
+            for name, data in chat_weddings.items():
+                if data['day'] == today.day and data['month'] == today.month:
+                    years_married = today.year - data['year']
+                    today_wedding_celebrants.append((name, years_married))
+            
+            if today_wedding_celebrants:
+                for name, years in today_wedding_celebrants:
+                    congratulation = random.choice(self.wedding_congratulations).format(names=name)
+                    try:
+                        await bot.send_message(
+                            chat_id=chat_id,
+                            text=f"💍 Напоминание о годовщине свадьбы!\n\n{congratulation}\n\nСегодня {years} лет вместе! 🎉",
+                            parse_mode="HTML"
+                        )
+                    except Exception as e:
+                        print(f"Ошибка отправки уведомления о свадьбе в чат {chat_id}: {e}")
     
     def schedule_notifications(self):
         """Настраивает расписание для уведомлений"""
@@ -417,7 +691,7 @@ class BirthdayBot:
         
         # Запуск веб-хука
         print(f"🤖 Бот запущен на веб-хуке: {webhook_url}")
-        print(f"📋 Доступные команды: /start, /add, /list, /delete, /today, /upcoming, /help")
+        print(f"📋 Доступные команды: /start, /add, /list, /delete, /today, /upcoming, /add_wedding, /list_weddings, /delete_wedding, /today_weddings, /upcoming_weddings, /help")
         
         # Явно указываем порт из переменной окружения
         port = int(os.environ.get("PORT", self.port))
@@ -435,7 +709,12 @@ class BirthdayBot:
             'delete': self.delete_birthday,
             'today': self.today_birthdays,
             'upcoming': self.upcoming_birthdays,
-            'enable_notifications': self.enable_notifications
+            'enable_notifications': self.enable_notifications,
+            'add_wedding': self.add_wedding,
+            'list_weddings': self.list_weddings,
+            'delete_wedding': self.delete_wedding,
+            'today_weddings': self.today_weddings,
+            'upcoming_weddings': self.upcoming_weddings
         }
         
         # Запускаем веб-приложение с aiohttp
