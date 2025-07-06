@@ -110,55 +110,75 @@ AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
 
 Это решение полностью избегает использования классов Application.builder() и Updater, но оказалось, что класса `Dispatcher` больше нет в текущей версии библиотеки.
 
-### Способ 4: Использовать Application.builder() с aiohttp (окончательное решение)
+### Способ 4: Использовать Application.builder() с aiohttp (не сработало)
 
-Это решение использует Application.builder(), но избегает использования Updater и встроенного веб-сервера:
+Это решение использует Application.builder(), но избегает использования Updater и встроенного веб-сервера. Однако оказалось, что внутри Application.builder() все равно используется Updater.
+
+### Способ 5: Использовать только базовые классы Bot и aiohttp (окончательное решение)
+
+Это решение полностью избегает использования классов Application, ApplicationBuilder и Updater:
 
 1. Добавьте библиотеку aiohttp в `requirements.txt`:
    ```
    aiohttp==3.9.3
    ```
 
-2. Переработайте метод `run_webhook()`:
+2. Полностью переработайте метод `run_webhook()`:
    ```python
    async def run_webhook(self):
        # ...
-       # Используем Application для версии 20.x
-       from telegram import Bot
-       from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+       # Используем только базовые классы без Application.builder()
+       from telegram import Bot, Update
        from aiohttp import web
        
-       # Создаем приложение с использованием Application.builder() но без Updater
-       application = (
-           Application.builder()
-           .token(self.bot_token)
-           .build()
-       )
+       # Создаем бота напрямую
+       bot = Bot(token=self.bot_token)
        
-       # Добавляем обработчики команд
-       application.add_handler(CommandHandler("start", self.start))
-       # ... добавляем остальные обработчики ...
+       # Устанавливаем веб-хук
+       await bot.set_webhook(url=webhook_url)
        
-       # Инициализируем приложение
-       await application.initialize()
-       
-       # Настраиваем веб-хук
-       await application.bot.set_webhook(url=webhook_url)
+       # Создаем словарь обработчиков команд
+       command_handlers = {
+           'start': self.start,
+           'help': self.help_command,
+           'add': self.add_birthday,
+           # ... другие обработчики ...
+       }
        
        # Запускаем веб-приложение с aiohttp
        async def webhook_handler(request):
-           update_data = await request.json()
-           await application.process_update(update_data)
-           return web.Response()
+           try:
+               # Получаем данные запроса
+               update_data = await request.json()
+               
+               # Создаем объект Update из JSON
+               update = Update.de_json(data=update_data, bot=bot)
+               
+               # Создаем контекст вручную
+               from telegram.ext import CallbackContext
+               context = CallbackContext.from_update(update, bot)
+               
+               # Обрабатываем команды
+               if update.message and update.message.text and update.message.text.startswith('/'):
+                   command = update.message.text.split(' ')[0][1:].split('@')[0]
+                   if command in command_handlers:
+                       await command_handlers[command](update, context)
+               
+               # Обрабатываем callback-запросы
+               if update.callback_query:
+                   await self.button_callback(update, context)
+               
+               return web.Response()
+           except Exception as e:
+               print(f"❌ Ошибка обработки запроса: {e}")
+               return web.Response(status=500)
        
-       # Создаем веб-приложение
+       # Создаем и запускаем веб-приложение
        app = web.Application()
        app.router.add_post(f"/{webhook_path}", webhook_handler)
        app.router.add_get("/", lambda request: web.Response(text="Бот работает!"))
        
-       # Запускаем приложение и веб-сервер
-       await application.start()
-       
+       # Запускаем веб-сервер
        runner = web.AppRunner(app)
        await runner.setup()
        site = web.TCPSite(runner, "0.0.0.0", port)
@@ -202,10 +222,11 @@ RuntimeError: To use `AIORateLimiter`, PTB must be installed via `pip install "p
 
 - [x] Понижена версия библиотеки до 20.6 (не помогло)
 - [x] Попытка использования Dispatcher напрямую (не сработало из-за отсутствия класса в текущей версии)
+- [x] Попытка использования Application.builder() с aiohttp (не сработало, т.к. внутри все равно используется Updater)
 - [x] Добавлена библиотека aiohttp в зависимости
-- [x] Изменен метод run_webhook() для использования Application.builder() с aiohttp
-- [x] Удалено использование AIORateLimiter
-- [x] Обновлен requirements.txt для установки python-telegram-bot с опцией rate-limiter
+- [x] Полностью переработан метод run_webhook() для использования только базовых классов Bot и aiohttp
+- [x] Удалено использование Application.builder() и Updater
+- [x] Добавлена обработка ошибок в webhook_handler
 - [x] Изменен метод check_and_send_notifications()
 - [x] Добавлен обработчик для проверки работоспособности по маршруту "/"
 - [ ] Проверена работоспособность бота после изменений 

@@ -396,10 +396,12 @@ class BirthdayBot:
             print("WEBHOOK_URL=https://your-app-name.onrender.com")
             return
         
-        # Используем Application для версии 20.x
-        from telegram import Bot
-        from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+        # Используем только базовые классы без Application.builder()
+        from telegram import Bot, Update
         from aiohttp import web
+        
+        # Создаем бота напрямую
+        bot = Bot(token=self.bot_token)
         
         # Настройка веб-хука
         webhook_path = "telegram"
@@ -408,24 +410,6 @@ class BirthdayBot:
         # Выводим отладочную информацию
         print(f"🔄 Настройка веб-хука: {webhook_url}")
         print(f"🔄 Порт: {self.port}")
-        
-        # Создаем приложение с использованием Application.builder() но без Updater и без AIORateLimiter
-        application = (
-            Application.builder()
-            .token(self.bot_token)
-            .build()
-        )
-        
-        # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", self.start))
-        application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(CommandHandler("add", self.add_birthday))
-        application.add_handler(CommandHandler("list", self.list_birthdays))
-        application.add_handler(CommandHandler("delete", self.delete_birthday))
-        application.add_handler(CommandHandler("today", self.today_birthdays))
-        application.add_handler(CommandHandler("upcoming", self.upcoming_birthdays))
-        application.add_handler(CommandHandler("enable_notifications", self.enable_notifications))
-        application.add_handler(CallbackQueryHandler(self.button_callback))
         
         # Настраиваем планировщик уведомлений
         self.schedule_notifications()
@@ -439,22 +423,49 @@ class BirthdayBot:
         port = int(os.environ.get("PORT", self.port))
         print(f"🔄 Запуск на порту: {port}")
         
-        # Инициализируем приложение
-        await application.initialize()
+        # Устанавливаем веб-хук
+        await bot.set_webhook(url=webhook_url)
         
-        # Настраиваем веб-хук
-        await application.bot.set_webhook(url=webhook_url)
+        # Создаем словарь обработчиков команд
+        command_handlers = {
+            'start': self.start,
+            'help': self.help_command,
+            'add': self.add_birthday,
+            'list': self.list_birthdays,
+            'delete': self.delete_birthday,
+            'today': self.today_birthdays,
+            'upcoming': self.upcoming_birthdays,
+            'enable_notifications': self.enable_notifications
+        }
         
-        # Запускаем веб-приложение с aiohttp вместо встроенного веб-сервера
+        # Запускаем веб-приложение с aiohttp
         async def webhook_handler(request):
-            # Получаем данные запроса
-            update_data = await request.json()
-            
-            # Обрабатываем обновление через приложение
-            await application.process_update(update_data)
-            
-            # Возвращаем успешный ответ
-            return web.Response()
+            try:
+                # Получаем данные запроса
+                update_data = await request.json()
+                
+                # Создаем объект Update из JSON
+                update = Update.de_json(data=update_data, bot=bot)
+                
+                # Создаем контекст вручную
+                from telegram.ext import CallbackContext
+                context = CallbackContext.from_update(update, bot)
+                
+                # Обрабатываем команды
+                if update.message and update.message.text and update.message.text.startswith('/'):
+                    command = update.message.text.split(' ')[0][1:].split('@')[0]
+                    if command in command_handlers:
+                        await command_handlers[command](update, context)
+                
+                # Обрабатываем callback-запросы
+                if update.callback_query:
+                    await self.button_callback(update, context)
+                
+                # Возвращаем успешный ответ
+                return web.Response()
+            except Exception as e:
+                print(f"❌ Ошибка обработки запроса: {e}")
+                return web.Response(status=500)
         
         # Создаем веб-приложение
         app = web.Application()
@@ -468,9 +479,6 @@ class BirthdayBot:
         app.router.add_get("/", health_check)
         
         try:
-            # Запускаем приложение
-            await application.start()
-            
             # Запускаем веб-сервер
             runner = web.AppRunner(app)
             await runner.setup()
@@ -487,8 +495,6 @@ class BirthdayBot:
         finally:
             # Останавливаем приложение при выходе
             await runner.cleanup()
-            await application.stop()
-            await application.shutdown()
 
 if __name__ == "__main__":
     bot = BirthdayBot()
