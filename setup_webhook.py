@@ -21,29 +21,26 @@ RENDER_IPS = [
     "52.59.103.54"
 ]
 
+# Токен бота (можно переопределить из .env)
+BOT_TOKEN = os.getenv('BOT_TOKEN', "8012067557:AAGkdq_fUfomek-ee9CRsyjm6BHZ0dEl8NA")
+
 def setup_webhook():
     """Настраивает веб-хук для бота с учетом IP-адресов Render"""
     
-    # Получаем токен бота и URL веб-хука из переменных окружения
-    bot_token = os.getenv('BOT_TOKEN')
+    # Получаем URL веб-хука из переменных окружения
     webhook_url = os.getenv('WEBHOOK_URL')
-    
-    if not bot_token:
-        print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
-        print("Создайте файл .env и добавьте туда ваш токен бота:")
-        print("BOT_TOKEN=your_bot_token_here")
-        return False
     
     if not webhook_url:
         print("❌ Ошибка: WEBHOOK_URL не найден в переменных окружения!")
-        print("Добавьте WEBHOOK_URL в файл .env:")
-        print("WEBHOOK_URL=https://your-app-name.onrender.com")
-        return False
+        webhook_url = input("Введите URL вашего сервиса на Render (например, https://birthday-bot.onrender.com): ")
+        if not webhook_url:
+            print("❌ URL не указан. Операция отменена.")
+            return False
     
     # Формируем URL для настройки веб-хука
     webhook_path = "telegram"
     full_webhook_url = f"{webhook_url}/{webhook_path}"
-    api_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
+    api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
     
     # Параметры запроса
     params = {
@@ -56,6 +53,7 @@ def setup_webhook():
         # Отправляем запрос на настройку веб-хука
         print(f"🔄 Настройка веб-хука на URL: {full_webhook_url}")
         print(f"🔄 Используемый IP-адрес: {RENDER_IPS[0]}")
+        print(f"🔑 Используется токен: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
         
         response = requests.post(api_url, json=params)
         result = response.json()
@@ -75,15 +73,10 @@ def setup_webhook():
 def get_webhook_info():
     """Получает информацию о текущем веб-хуке"""
     
-    bot_token = os.getenv('BOT_TOKEN')
-    
-    if not bot_token:
-        print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
-        return False
-    
-    api_url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
+    api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getWebhookInfo"
     
     try:
+        print(f"🔑 Используется токен: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
         response = requests.get(api_url)
         result = response.json()
         
@@ -106,15 +99,10 @@ def get_webhook_info():
 def delete_webhook():
     """Удаляет текущий веб-хук"""
     
-    bot_token = os.getenv('BOT_TOKEN')
-    
-    if not bot_token:
-        print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
-        return False
-    
-    api_url = f"https://api.telegram.org/bot{bot_token}/deleteWebhook"
+    api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
     
     try:
+        print(f"🔑 Используется токен: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
         response = requests.get(api_url)
         result = response.json()
         
